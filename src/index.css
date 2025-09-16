@@ -2,41 +2,71 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* Arogya Setu AI Design System - Medical & Health focused */
 
 @layer base {
   :root {
+    /* Medical theme colors */
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 217 33% 17%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 217 33% 17%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 217 33% 17%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Medical blue primary */
+    --primary: 210 100% 45%;
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 210 100% 95%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Health green secondary */
+    --secondary: 142 76% 36%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-light: 142 76% 95%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Neutral grays */
+    --muted: 217 12% 96%;
+    --muted-foreground: 217 10% 50%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 210 100% 97%;
+    --accent-foreground: 217 33% 17%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    /* Medical alert colors */
+    --destructive: 0 75% 60%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    /* Severity levels */
+    --severity-mild: 142 69% 58%;
+    --severity-moderate: 38 92% 50%;
+    --severity-severe: 25 95% 53%;
+    --severity-critical: 0 75% 60%;
 
-    --radius: 0.5rem;
+    --border: 217 12% 88%;
+    --input: 217 12% 96%;
+    --ring: 210 100% 45%;
+
+    --radius: 0.75rem;
+
+    /* Medical gradients */
+    --gradient-medical: linear-gradient(135deg, hsl(210 100% 45%), hsl(142 76% 36%));
+    --gradient-card: linear-gradient(135deg, hsl(0 0% 100%), hsl(217 12% 99%));
+    --gradient-header: linear-gradient(135deg, hsl(210 100% 45%) 0%, hsl(210 100% 55%) 100%);
+
+    /* Shadows */
+    --shadow-medical: 0 4px 20px -2px hsl(210 100% 45% / 0.1);
+    --shadow-card: 0 2px 10px -2px hsl(217 10% 50% / 0.1);
+    --shadow-float: 0 10px 30px -10px hsl(210 100% 45% / 0.3);
+
+    /* Typography */
+    --font-medical: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 
     --sidebar-background: 0 0% 98%;
 
@@ -56,33 +86,24 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
+    /* Dark mode medical theme */
+    --background: 217 33% 7%;
+    --foreground: 0 0% 98%;
+    --card: 217 33% 10%;
+    --card-foreground: 0 0% 98%;
+    --primary: 210 100% 60%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 142 76% 50%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 217 33% 15%;
+    --muted-foreground: 217 10% 70%;
+    --accent: 217 33% 15%;
+    --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --border: 217 33% 20%;
+    --input: 217 33% 15%;
+    --ring: 210 100% 60%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -101,5 +122,48 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  /* Medical app specific styles */
+  .medical-gradient {
+    background: var(--gradient-medical);
+  }
+
+  .card-gradient {
+    background: var(--gradient-card);
+  }
+
+  .header-gradient {
+    background: var(--gradient-header);
+  }
+
+  .shadow-medical {
+    box-shadow: var(--shadow-medical);
+  }
+
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+
+  .shadow-float {
+    box-shadow: var(--shadow-float);
+  }
+
+  /* Severity indicators */
+  .severity-mild {
+    color: hsl(var(--severity-mild));
+  }
+
+  .severity-moderate {
+    color: hsl(var(--severity-moderate));
+  }
+
+  .severity-severe {
+    color: hsl(var(--severity-severe));
+  }
+
+  .severity-critical {
+    color: hsl(var(--severity-critical));
   }
 }
