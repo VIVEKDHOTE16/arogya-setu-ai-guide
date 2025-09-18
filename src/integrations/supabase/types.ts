@@ -14,7 +14,176 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      chat_conversations: {
+        Row: {
+          bot_response: string
+          created_at: string
+          disease_found: boolean | null
+          disease_id: string | null
+          id: string
+          misinformation_detected: boolean | null
+          misinformation_report_id: string | null
+          session_id: string
+          user_query: string
+        }
+        Insert: {
+          bot_response: string
+          created_at?: string
+          disease_found?: boolean | null
+          disease_id?: string | null
+          id?: string
+          misinformation_detected?: boolean | null
+          misinformation_report_id?: string | null
+          session_id: string
+          user_query: string
+        }
+        Update: {
+          bot_response?: string
+          created_at?: string
+          disease_found?: boolean | null
+          disease_id?: string | null
+          id?: string
+          misinformation_detected?: boolean | null
+          misinformation_report_id?: string | null
+          session_id?: string
+          user_query?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_conversations_disease_id_fkey"
+            columns: ["disease_id"]
+            isOneToOne: false
+            referencedRelation: "diseases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chat_conversations_misinformation_report_id_fkey"
+            columns: ["misinformation_report_id"]
+            isOneToOne: false
+            referencedRelation: "misinformation_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      diseases: {
+        Row: {
+          category: string
+          causes: string[] | null
+          cdc_verified: boolean | null
+          created_at: string
+          description: string
+          disease_name: string
+          featured: boolean | null
+          id: string
+          mohfw_verified: boolean | null
+          name_hindi: string | null
+          precautions: string[]
+          prevalence: string | null
+          related_diseases: string[] | null
+          remedies: string[] | null
+          seasonal: boolean | null
+          severity: string
+          symptoms: string[]
+          treatments: string[]
+          updated_at: string
+          who_verified: boolean | null
+        }
+        Insert: {
+          category: string
+          causes?: string[] | null
+          cdc_verified?: boolean | null
+          created_at?: string
+          description: string
+          disease_name: string
+          featured?: boolean | null
+          id?: string
+          mohfw_verified?: boolean | null
+          name_hindi?: string | null
+          precautions: string[]
+          prevalence?: string | null
+          related_diseases?: string[] | null
+          remedies?: string[] | null
+          seasonal?: boolean | null
+          severity: string
+          symptoms: string[]
+          treatments: string[]
+          updated_at?: string
+          who_verified?: boolean | null
+        }
+        Update: {
+          category?: string
+          causes?: string[] | null
+          cdc_verified?: boolean | null
+          created_at?: string
+          description?: string
+          disease_name?: string
+          featured?: boolean | null
+          id?: string
+          mohfw_verified?: boolean | null
+          name_hindi?: string | null
+          precautions?: string[]
+          prevalence?: string | null
+          related_diseases?: string[] | null
+          remedies?: string[] | null
+          seasonal?: boolean | null
+          severity?: string
+          symptoms?: string[]
+          treatments?: string[]
+          updated_at?: string
+          who_verified?: boolean | null
+        }
+        Relationships: []
+      }
+      misinformation_reports: {
+        Row: {
+          correct_information: string
+          created_at: string
+          disease_id: string | null
+          frequency_count: number | null
+          id: string
+          misinformation_type: string
+          region: string | null
+          updated_at: string
+          user_consented_location: boolean | null
+          user_location: string | null
+          user_query: string
+        }
+        Insert: {
+          correct_information: string
+          created_at?: string
+          disease_id?: string | null
+          frequency_count?: number | null
+          id?: string
+          misinformation_type: string
+          region?: string | null
+          updated_at?: string
+          user_consented_location?: boolean | null
+          user_location?: string | null
+          user_query: string
+        }
+        Update: {
+          correct_information?: string
+          created_at?: string
+          disease_id?: string | null
+          frequency_count?: number | null
+          id?: string
+          misinformation_type?: string
+          region?: string | null
+          updated_at?: string
+          user_consented_location?: boolean | null
+          user_location?: string | null
+          user_query?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "misinformation_reports_disease_id_fkey"
+            columns: ["disease_id"]
+            isOneToOne: false
+            referencedRelation: "diseases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
