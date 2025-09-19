@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { generateHealthResponse, detectHealthMisinformation, isGeminiConfigured } from '@/services/geminiAI';
 
 export const useChatBot = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -19,12 +20,23 @@ export const useChatBot = () => {
         .single();
 
       if (error && error.code !== 'PGRST116') {
+        console.error('Supabase error:', error);
+        toast({
+          title: 'Database Error',
+          description: 'Failed to search diseases. Please check your connection.',
+          variant: 'destructive'
+        });
         throw error;
       }
 
       return data;
     } catch (error) {
       console.error('Error searching disease:', error);
+      toast({
+        title: 'Search Error',
+        description: 'Failed to search for disease information.',
+        variant: 'destructive'
+      });
       return null;
     } finally {
       setIsLoading(false);
@@ -33,55 +45,36 @@ export const useChatBot = () => {
 
   const detectMisinformation = async (query: string) => {
     try {
-      // Simple misinformation detection patterns
-      const misinformationPatterns = [
-        {
-          pattern: /drinking.*bleach|bleach.*cure|inject.*disinfectant/i,
-          type: 'Fake Cure',
-          correction: 'Never drink bleach or inject disinfectants. These are extremely dangerous and can be fatal. Always consult healthcare professionals for treatment.'
-        },
-        {
-          pattern: /5g.*covid|covid.*5g|5g.*virus/i,
-          type: 'Conspiracy Theory',
-          correction: '5G networks do not cause COVID-19. COVID-19 is caused by the SARS-CoV-2 virus, which spreads through respiratory droplets.'
-        },
-        {
-          pattern: /vitamin.*c.*cure|lemon.*cure.*covid|garlic.*cure/i,
-          type: 'False Treatment',
-          correction: 'While vitamins and natural foods support immune health, they cannot cure serious diseases. Always follow medical advice for treatment.'
-        },
-        {
-          pattern: /masks.*dont.*work|masks.*harmful|masks.*oxygen/i,
-          type: 'False Prevention',
-          correction: 'Masks are effective in reducing the spread of respiratory diseases when used properly. They do not cause oxygen deficiency.'
+      if (!isGeminiConfigured()) {
+        console.warn('Gemini AI not configured, skipping misinformation detection');
+        return null;
+      }
+
+      const result = await detectHealthMisinformation(query);
+      
+      if (result.isMisinformation) {
+        // Log misinformation
+        const { data, error } = await supabase
+          .from('misinformation_reports')
+          .insert({
+            user_query: query,
+            misinformation_type: result.category || 'Misinformation',
+            correct_information: result.correction || 'Please consult healthcare professionals for accurate information.',
+            frequency_count: 1
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('Error logging misinformation:', error);
         }
-      ];
 
-      for (const pattern of misinformationPatterns) {
-        if (pattern.pattern.test(query)) {
-          // Log misinformation
-          const { data, error } = await supabase
-            .from('misinformation_reports')
-            .insert({
-              user_query: query,
-              misinformation_type: pattern.type,
-              correct_information: pattern.correction,
-              frequency_count: 1
-            })
-            .select()
-            .single();
-
-          if (error) {
-            console.error('Error logging misinformation:', error);
-          }
-
-          return {
-            detected: true,
-            type: pattern.type,
-            correction: pattern.correction,
-            id: data?.id
-          };
-        }
+        return {
+          detected: true,
+          type: result.category || 'Misinformation',
+          correction: result.correction || 'Please consult healthcare professionals for accurate information.',
+          id: data?.id
+        };
       }
 
       return null;
@@ -172,6 +165,60 @@ export const useChatBot = () => {
     }
   };
 
+  const testConnection = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('diseases')
+        .select('count')
+        .limit(1);
+
+      if (error) {
+        console.error('Connection test failed:', error);
+        toast({
+          title: 'Connection Failed',
+          description: 'Unable to connect to the database. Please check your internet connection.',
+          variant: 'destructive'
+        });
+        return false;
+      }
+
+      toast({
+        title: 'Connection Success',
+        description: 'Successfully connected to the database.',
+        variant: 'default'
+      });
+      return true;
+    } catch (error) {
+      console.error('Connection test error:', error);
+      toast({
+        title: 'Connection Error',
+        description: 'Failed to test database connection.',
+        variant: 'destructive'
+      });
+      return false;
+    }
+  };
+
+  const getAIHealthResponse = async (query: string) => {
+    try {
+      if (!isGeminiConfigured()) {
+        return {
+          response: "AI assistant is currently unavailable. Please configure your Gemini API key.",
+          disclaimer: "Please consult a healthcare professional for medical advice."
+        };
+      }
+
+      const result = await generateHealthResponse(query);
+      return result;
+    } catch (error) {
+      console.error('Error getting AI response:', error);
+      return {
+        response: "Sorry, I encountered an error while processing your query. Please try again later.",
+        disclaimer: "Please consult a healthcare professional for medical advice."
+      };
+    }
+  };
+
   return {
     searchDisease,
     detectMisinformation,
@@ -179,6 +226,8 @@ export const useChatBot = () => {
     getAllDiseases,
     getFeaturedDiseases,
     getSeasonalDiseases,
+    testConnection,
+    getAIHealthResponse,
     isLoading
   };
 };

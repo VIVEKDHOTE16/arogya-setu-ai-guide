@@ -28,7 +28,7 @@ export const ChatBot = () => {
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { searchDisease, logConversation, detectMisinformation } = useChatBot();
+  const { searchDisease, logConversation, detectMisinformation, getAIHealthResponse } = useChatBot();
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -53,52 +53,56 @@ export const ChatBot = () => {
     setIsLoading(true);
 
     try {
-      // Search for disease in database
-      const disease = await searchDisease(inputText);
-      
-      // Check for misinformation
+      // Check for misinformation first
       const misinformationDetected = await detectMisinformation(inputText);
-
+      
       let botResponse = '';
       let botMessage: Message;
 
-      if (disease) {
-        // Format disease information
-        botResponse = formatDiseaseResponse(disease);
-        botMessage = {
-          id: (Date.now() + 1).toString(),
-          text: botResponse,
-          isBot: true,
-          disease,
-          timestamp: new Date()
-        };
-      } else {
-        botResponse = "Sorry, I don't have verified info about this disease yet. Please consult a certified doctor.";
-        botMessage = {
-          id: (Date.now() + 1).toString(),
-          text: botResponse,
-          isBot: true,
-          timestamp: new Date()
-        };
-      }
-
-      // Add misinformation warning if detected
       if (misinformationDetected) {
-        botMessage.misinformation = true;
+        // Show misinformation correction
         const correctionMessage: Message = {
-          id: (Date.now() + 2).toString(),
+          id: (Date.now() + 1).toString(),
           text: `⚠️ **Misinformation Detected**: ${misinformationDetected.correction}`,
           isBot: true,
           misinformation: true,
           timestamp: new Date()
         };
-        setMessages(prev => [...prev, correctionMessage, botMessage]);
+        setMessages(prev => [...prev, correctionMessage]);
+        botResponse = misinformationDetected.correction;
       } else {
-        setMessages(prev => [...prev, botMessage]);
+        // Try to find disease in database first
+        const disease = await searchDisease(inputText);
+        
+        if (disease) {
+          // Use database information
+          botResponse = formatDiseaseResponse(disease);
+          botMessage = {
+            id: (Date.now() + 1).toString(),
+            text: botResponse,
+            isBot: true,
+            disease,
+            timestamp: new Date()
+          };
+        } else {
+          // Use AI to generate response
+          const aiResponse = await getAIHealthResponse(inputText);
+          botResponse = `${aiResponse.response}\n\n---\n${aiResponse.disclaimer}`;
+          botMessage = {
+            id: (Date.now() + 1).toString(),
+            text: botResponse,
+            isBot: true,
+            timestamp: new Date()
+          };
+        }
+
+        if (botMessage) {
+          setMessages(prev => [...prev, botMessage]);
+        }
       }
 
       // Log conversation
-      await logConversation(inputText, botResponse, disease?.id, misinformationDetected?.id);
+      await logConversation(inputText, botResponse, null, misinformationDetected?.id);
 
     } catch (error) {
       console.error('Error processing message:', error);

@@ -7,11 +7,13 @@ import Header from "@/components/Header";
 import { ChatBot } from "@/components/ChatBot";
 import { DiseaseInfo } from "@/components/DiseaseInfo";
 import { MisinformationDashboard } from "@/components/MisinformationDashboard";
+import { APIStatus } from "@/components/APIStatus";
+import { GeminiTest } from "@/components/GeminiTest";
 import { sampleDiseases, diseaseCategories, severityLevels } from "@/data/sampleDiseases";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageCircle, Database, AlertTriangle, Home } from "lucide-react";
+import { MessageCircle, Database, AlertTriangle, Home, Settings } from "lucide-react";
 
 const Index = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -84,18 +86,22 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-8">
+          <TabsList className="grid w-full grid-cols-5 mb-8">
             <TabsTrigger value="home" className="flex items-center gap-2">
               <Home className="h-4 w-4" />
               Home
             </TabsTrigger>
             <TabsTrigger value="chatbot" className="flex items-center gap-2">
               <MessageCircle className="h-4 w-4" />
-              Chatbot
+              AI Chat
             </TabsTrigger>
             <TabsTrigger value="diseases" className="flex items-center gap-2">
               <Database className="h-4 w-4" />
               Disease Info
+            </TabsTrigger>
+            <TabsTrigger value="status" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              API Status
             </TabsTrigger>
             <TabsTrigger value="misinformation" className="flex items-center gap-2">
               <AlertTriangle className="h-4 w-4" />
@@ -166,6 +172,13 @@ const Index = () => {
 
           <TabsContent value="diseases">
             <DiseaseInfo />
+          </TabsContent>
+
+          <TabsContent value="status">
+            <div className="space-y-6">
+              <APIStatus />
+              <GeminiTest />
+            </div>
           </TabsContent>
 
           <TabsContent value="misinformation">
