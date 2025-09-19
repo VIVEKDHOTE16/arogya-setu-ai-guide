@@ -8,7 +8,12 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "start": "vite preview --host 0.0.0.0 --port 8080",
+    "docker:build": "docker build -t arogya-setu .",
+    "docker:run": "docker run -p 8080:8080 --env-file .env arogya-setu",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",

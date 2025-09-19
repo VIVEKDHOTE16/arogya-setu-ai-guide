@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  arogya-setu:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - VITE_SUPABASE_PROJECT_ID=${VITE_SUPABASE_PROJECT_ID}
+      - VITE_SUPABASE_PUBLISHABLE_KEY=${VITE_SUPABASE_PUBLISHABLE_KEY}
+      - VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+      - VITE_GEMINI_API_KEY=${VITE_GEMINI_API_KEY}
+      - VITE_GEMINI_MODEL=${VITE_GEMINI_MODEL}
+    env_file:
+      - .env
+    restart: unless-stopped
