@@ -7,13 +7,16 @@ import Header from "@/components/Header";
 import { ChatBot } from "@/components/ChatBot";
 import { DiseaseInfo } from "@/components/DiseaseInfo";
 import { MisinformationDashboard } from "@/components/MisinformationDashboard";
+import { MisinformationTracker } from "@/components/MisinformationTracker";
+import { SimpleRegionalAnalysis } from "@/components/SimpleRegionalAnalysis";
+import { InteractiveMapAnalysis } from "@/components/InteractiveMapAnalysis";
 import { APIStatus } from "@/components/APIStatus";
 import { GeminiTest } from "@/components/GeminiTest";
 import { sampleDiseases, diseaseCategories, severityLevels } from "@/data/sampleDiseases";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageCircle, Database, AlertTriangle, Home, Settings } from "lucide-react";
+import { MessageCircle, Database, AlertTriangle, Home, Settings, MapPin } from "lucide-react";
 
 const Index = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -86,7 +89,7 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-5 mb-8">
+          <TabsList className="grid w-full grid-cols-6 mb-8">
             <TabsTrigger value="home" className="flex items-center gap-2">
               <Home className="h-4 w-4" />
               Home
@@ -99,13 +102,17 @@ const Index = () => {
               <Database className="h-4 w-4" />
               Disease Info
             </TabsTrigger>
+            <TabsTrigger value="misinformation" className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4" />
+              Analytics
+            </TabsTrigger>
+            <TabsTrigger value="tracker" className="flex items-center gap-2">
+              <MapPin className="h-4 w-4" />
+              Regional Map
+            </TabsTrigger>
             <TabsTrigger value="status" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
               API Status
-            </TabsTrigger>
-            <TabsTrigger value="misinformation" className="flex items-center gap-2">
-              <AlertTriangle className="h-4 w-4" />
-              Misinformation Dashboard
             </TabsTrigger>
           </TabsList>
 
@@ -151,15 +158,15 @@ const Index = () => {
                   <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
                     <AlertTriangle className="h-6 w-6 text-purple-600" />
                   </div>
-                  <h3 className="font-semibold text-lg mb-2">Misinformation Tracking</h3>
-                  <p className="text-gray-600 text-sm">Monitor and combat health misinformation with analytics</p>
+                  <h3 className="font-semibold text-lg mb-2">Interactive Regional Map</h3>
+                  <p className="text-gray-600 text-sm">Explore misinformation hotspots across India with an interactive map</p>
                   <Button 
                     className="mt-4" 
                     size="sm" 
                     variant="outline"
-                    onClick={() => setActiveTab("misinformation")}
+                    onClick={() => setActiveTab("tracker")}
                   >
-                    View Dashboard
+                    View Interactive Map
                   </Button>
                 </CardContent>
               </Card>
@@ -183,6 +190,10 @@ const Index = () => {
 
           <TabsContent value="misinformation">
             <MisinformationDashboard />
+          </TabsContent>
+
+          <TabsContent value="tracker">
+            <InteractiveMapAnalysis />
           </TabsContent>
         </Tabs>
       </main>

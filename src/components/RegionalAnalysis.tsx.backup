@@ -1,0 +1,554 @@
+import React, { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MapPin, AlertTriangle, TrendingUp, Users, Shield, Loader2 } from 'lucide-react';
+import { geolocationService, LocationData, GeolocationError, formatLocation } from '@/services/geolocation';
+import { supabase } from '@/integrations/supabase/client';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+
+// Fix for Leaflet default markers
+delete (L.Icon.Default.prototype as any)._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
+
+interface MisinformationHotspot {
+  id: string;
+  region: string;
+  state: string;
+  city: string;
+  misinformation_type: string;
+  total_reports: number;
+  avg_latitude: number;
+  avg_longitude: number;
+  severity_score: number;
+}
+
+interface RegionalStats {
+  region: string;
+  state: string;
+  total_reports: number;
+  types: string[];
+  latest_report: string;
+}
+
+interface NearbyReport {
+  id: string;
+  misinformation_type: string;
+  correct_information: string;
+  distance_km: number;
+  city: string;
+  state: string;
+  report_count: number;
+  created_at: string;
+}
+
+// Custom map component to handle location updates
+const LocationMarker: React.FC<{ location: LocationData | null }> = ({ location }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (location) {
+      map.setView([location.latitude, location.longitude], 10);
+    }
+  }, [location, map]);
+
+  if (!location) return null;
+
+  return (
+    <>
+      <Marker position={[location.latitude, location.longitude]}>
+        <Popup>
+          <div className="text-center">
+            <MapPin className="h-4 w-4 mx-auto mb-2 text-blue-500" />
+            <p className="font-semibold">Your Location</p>
+            <p className="text-sm text-gray-600">{formatLocation(location)}</p>
+            <p className="text-xs text-gray-500">
+              Accuracy: ±{location.accuracy}m
+            </p>
+          </div>
+        </Popup>
+      </Marker>
+      <Circle
+        center={[location.latitude, location.longitude]}
+        radius={location.accuracy || 1000}
+        pathOptions={{ 
+          fillColor: 'blue', 
+          fillOpacity: 0.1, 
+          color: 'blue', 
+          weight: 1 
+        }}
+      />
+    </>
+  );
+};
+
+// Misinformation marker component
+const MisinformationMarker: React.FC<{ hotspot: MisinformationHotspot }> = ({ hotspot }) => {
+  const getMarkerColor = (severityScore: number) => {
+    if (severityScore > 1) return 'red';
+    if (severityScore > 0.5) return 'orange';
+    return 'yellow';
+  };
+
+  const getSeverityLevel = (score: number) => {
+    if (score > 1) return 'High';
+    if (score > 0.5) return 'Medium';
+    return 'Low';
+  };
+
+  return (
+    <Marker 
+      position={[hotspot.avg_latitude, hotspot.avg_longitude]}
+      icon={L.divIcon({
+        className: 'custom-marker',
+        html: `<div style="background-color: ${getMarkerColor(hotspot.severity_score)}; width: 20px; height: 20px; border-radius: 50%; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; color: white; font-size: 10px; font-weight: bold;">${hotspot.total_reports}</div>`,
+        iconSize: [20, 20],
+        iconAnchor: [10, 10]
+      })}
+    >
+      <Popup>
+        <div className="min-w-[200px]">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="h-4 w-4 text-red-500" />
+            <span className="font-semibold">Misinformation Hotspot</span>
+          </div>
+          <div className="space-y-1 text-sm">
+            <p><strong>Location:</strong> {hotspot.city}, {hotspot.state}</p>
+            <p><strong>Region:</strong> {hotspot.region}</p>
+            <p><strong>Type:</strong> {hotspot.misinformation_type}</p>
+            <p><strong>Reports:</strong> {hotspot.total_reports}</p>
+            <Badge variant={hotspot.severity_score > 1 ? 'destructive' : hotspot.severity_score > 0.5 ? 'default' : 'secondary'}>
+              {getSeverityLevel(hotspot.severity_score)} Risk
+            </Badge>
+          </div>
+        </div>
+      </Popup>
+    </Marker>
+  );
+};
+
+export const RegionalAnalysis: React.FC = () => {
+  const [userLocation, setUserLocation] = useState<LocationData | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
+  const [hotspots, setHotspots] = useState<MisinformationHotspot[]>([]);
+  const [regionalStats, setRegionalStats] = useState<RegionalStats[]>([]);
+  const [nearbyReports, setNearbyReports] = useState<NearbyReport[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(false);
+  const [locationPermission, setLocationPermission] = useState<'granted' | 'denied' | 'prompt'>('prompt');
+
+  // Initialize component
+  useEffect(() => {
+    checkLocationPermission();
+    loadHotspots();
+    loadRegionalStats();
+  }, []);
+
+  // Load data when user location changes
+  useEffect(() => {
+    if (userLocation) {
+      loadNearbyReports();
+    }
+  }, [userLocation]);
+
+  const checkLocationPermission = async () => {
+    const permission = await geolocationService.checkPermission();
+    setLocationPermission(permission);
+  };
+
+  const requestLocation = async () => {
+    setIsLoadingLocation(true);
+    setLocationError(null);
+
+    try {
+      const location = await geolocationService.getCurrentPosition();
+      setUserLocation(location);
+      setLocationPermission('granted');
+    } catch (error) {
+      const geoError = error as GeolocationError;
+      setLocationError(geoError.message);
+      setLocationPermission('denied');
+    } finally {
+      setIsLoadingLocation(false);
+    }
+  };
+
+  const loadHotspots = async () => {
+    setIsLoadingData(true);
+    try {
+      // For now, use direct query until we apply the migration
+      const { data, error } = await supabase
+        .from('misinformation_reports')
+        .select('*')
+        .not('latitude', 'is', null)
+        .not('longitude', 'is', null);
+      
+      if (error) {
+        console.error('Error loading hotspots:', error);
+        return;
+      }
+
+      // Group by location and create hotspots
+      const locationGroups: { [key: string]: any } = {};
+      (data || []).forEach(report => {
+        const key = `${report.city || 'Unknown'}-${report.state || 'Unknown'}`;
+        if (!locationGroups[key]) {
+          locationGroups[key] = {
+            id: key,
+            city: report.city || 'Unknown',
+            state: report.state || 'Unknown',
+            region: report.region || 'Unknown',
+            misinformation_type: report.misinformation_type,
+            total_reports: 0,
+            avg_latitude: 0,
+            avg_longitude: 0,
+            severity_score: 0,
+            reports: []
+          };
+        }
+        locationGroups[key].reports.push(report);
+        locationGroups[key].total_reports++;
+      });
+
+      // Calculate averages and severity scores
+      const hotspotsData = Object.values(locationGroups).map((group: any) => {
+        const validReports = group.reports.filter((r: any) => r.latitude && r.longitude);
+        if (validReports.length === 0) return null;
+
+        const avgLat = validReports.reduce((sum: number, r: any) => sum + parseFloat(r.latitude), 0) / validReports.length;
+        const avgLon = validReports.reduce((sum: number, r: any) => sum + parseFloat(r.longitude), 0) / validReports.length;
+        
+        return {
+          ...group,
+          avg_latitude: avgLat,
+          avg_longitude: avgLon,
+          severity_score: group.total_reports * 0.1 // Simple severity calculation
+        };
+      }).filter(Boolean);
+
+      setHotspots(hotspotsData as MisinformationHotspot[]);
+    } catch (error) {
+      console.error('Error loading hotspots:', error);
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
+
+  const loadRegionalStats = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('regional_misinformation_stats')
+        .select('*')
+        .order('report_count', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        console.error('Error loading regional stats:', error);
+        return;
+      }
+
+      // Group by region for summary
+      const regionGroups = (data || []).reduce((acc: any, item) => {
+        const key = item.region;
+        if (!acc[key]) {
+          acc[key] = {
+            region: key,
+            state: item.state,
+            total_reports: 0,
+            types: new Set(),
+            latest_report: item.latest_report
+          };
+        }
+        acc[key].total_reports += item.report_count;
+        acc[key].types.add(item.misinformation_type);
+        return acc;
+      }, {});
+
+      const stats = Object.values(regionGroups).map((group: any) => ({
+        ...group,
+        types: Array.from(group.types)
+      }));
+
+      setRegionalStats(stats as RegionalStats[]);
+    } catch (error) {
+      console.error('Error loading regional stats:', error);
+    }
+  };
+
+  const loadNearbyReports = async () => {
+    if (!userLocation) return;
+
+    try {
+      const { data, error } = await supabase.rpc('get_nearby_misinformation', {
+        user_lat: userLocation.latitude,
+        user_lon: userLocation.longitude,
+        radius_km: 100
+      });
+
+      if (error) {
+        console.error('Error loading nearby reports:', error);
+        return;
+      }
+
+      setNearbyReports(data || []);
+    } catch (error) {
+      console.error('Error loading nearby reports:', error);
+    }
+  };
+
+  const getSeverityColor = (score: number) => {
+    if (score > 1) return 'text-red-600';
+    if (score > 0.5) return 'text-orange-600';
+    return 'text-yellow-600';
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="text-center">
+        <h2 className="text-3xl font-bold mb-2">Regional Misinformation Analysis</h2>
+        <p className="text-muted-foreground">
+          Track and analyze health misinformation patterns across different regions using live location data
+        </p>
+      </div>
+
+      {/* Location Permission Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MapPin className="h-5 w-5" />
+            Location Access
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {locationPermission === 'prompt' && (
+            <Alert>
+              <Shield className="h-4 w-4" />
+              <AlertDescription>
+                Enable location access to see misinformation reports in your area and contribute to regional analysis.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {locationPermission === 'denied' && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                Location access denied. You can still view general regional data, but personalized nearby reports won't be available.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {userLocation && (
+            <Alert>
+              <MapPin className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Current Location:</strong> {formatLocation(userLocation)}
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {locationError && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>{locationError}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="mt-4">
+            <Button 
+              onClick={requestLocation}
+              disabled={isLoadingLocation || locationPermission === 'granted'}
+              className="w-full"
+            >
+              {isLoadingLocation ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Getting Location...
+                </>
+              ) : locationPermission === 'granted' ? (
+                <>
+                  <MapPin className="h-4 w-4 mr-2" />
+                  Location Enabled
+                </>
+              ) : (
+                <>
+                  <MapPin className="h-4 w-4 mr-2" />
+                  Enable Location Access
+                </>
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Tabs defaultValue="map" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="map">Interactive Map</TabsTrigger>
+          <TabsTrigger value="stats">Regional Statistics</TabsTrigger>
+          <TabsTrigger value="nearby">Nearby Reports</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="map" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Misinformation Hotspots Map
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[500px] w-full rounded-lg overflow-hidden border">
+                <MapContainer
+                  center={userLocation ? [userLocation.latitude, userLocation.longitude] : [20.5937, 78.9629]} // Center of India
+                  zoom={userLocation ? 10 : 5}
+                  style={{ height: '100%', width: '100%' }}
+                >
+                  <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                  
+                  <LocationMarker location={userLocation} />
+                  
+                  {hotspots.map((hotspot) => (
+                    <MisinformationMarker key={hotspot.id} hotspot={hotspot} />
+                  ))}
+                </MapContainer>
+              </div>
+              
+              <div className="mt-4 flex items-center justify-between text-sm text-muted-foreground">
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                    <span>High Risk</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                    <span>Medium Risk</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                    <span>Low Risk</span>
+                  </div>
+                </div>
+                <span>Total Hotspots: {hotspots.length}</span>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="stats" className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {regionalStats.map((stat, index) => (
+              <Card key={index}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg">{stat.region}</CardTitle>
+                  <p className="text-sm text-muted-foreground">{stat.state}</p>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm">Total Reports:</span>
+                      <Badge variant="outline">{stat.total_reports}</Badge>
+                    </div>
+                    <div>
+                      <span className="text-sm">Misinformation Types:</span>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {stat.types.map((type, i) => (
+                          <Badge key={i} variant="secondary" className="text-xs">
+                            {type}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {regionalStats.length === 0 && !isLoadingData && (
+            <Card>
+              <CardContent className="text-center py-8">
+                <Users className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-muted-foreground">No regional data available yet.</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="nearby" className="space-y-4">
+          {!userLocation ? (
+            <Card>
+              <CardContent className="text-center py-8">
+                <MapPin className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                <p className="text-muted-foreground mb-4">
+                  Enable location access to see nearby misinformation reports
+                </p>
+                <Button onClick={requestLocation} disabled={isLoadingLocation}>
+                  {isLoadingLocation ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Getting Location...
+                    </>
+                  ) : (
+                    <>
+                      <MapPin className="h-4 w-4 mr-2" />
+                      Enable Location
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {nearbyReports.map((report) => (
+                <Card key={report.id}>
+                  <CardContent className="pt-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <AlertTriangle className="h-4 w-4 text-red-500" />
+                          <Badge variant="outline">{report.misinformation_type}</Badge>
+                          <span className="text-sm text-muted-foreground">
+                            {report.distance_km.toFixed(1)} km away
+                          </span>
+                        </div>
+                        <p className="text-sm mb-2">{report.correct_information}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <MapPin className="h-3 w-3" />
+                          <span>{report.city}, {report.state}</span>
+                          <span>•</span>
+                          <span>{report.report_count} reports</span>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              {nearbyReports.length === 0 && (
+                <Card>
+                  <CardContent className="text-center py-8">
+                    <Shield className="h-12 w-12 mx-auto mb-4 text-green-500" />
+                    <p className="text-muted-foreground">
+                      No misinformation reports found in your area. Keep up the good work!
+                    </p>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+};

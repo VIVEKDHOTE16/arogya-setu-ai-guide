@@ -43,7 +43,7 @@ export const useChatBot = () => {
     }
   };
 
-  const detectMisinformation = async (query: string) => {
+  const detectMisinformation = async (query: string, userLocation?: string) => {
     try {
       if (!isGeminiConfigured()) {
         console.warn('Gemini AI not configured, skipping misinformation detection');
@@ -53,20 +53,41 @@ export const useChatBot = () => {
       const result = await detectHealthMisinformation(query);
       
       if (result.isMisinformation) {
-        // Log misinformation
+        // Log misinformation with location if available
+        const insertData: any = {
+          user_query: query,
+          misinformation_type: result.category || 'Misinformation',
+          correct_information: result.correction || 'Please consult healthcare professionals for accurate information.',
+          frequency_count: 1
+        };
+
+        // Add location data if available
+        if (userLocation) {
+          insertData.user_location = userLocation;
+          insertData.user_consented_location = true;
+          
+          // Extract region from location (basic state extraction)
+          if (userLocation.includes(',')) {
+            const parts = userLocation.split(',');
+            insertData.region = parts[parts.length - 1].trim();
+          }
+        }
+
         const { data, error } = await supabase
           .from('misinformation_reports')
-          .insert({
-            user_query: query,
-            misinformation_type: result.category || 'Misinformation',
-            correct_information: result.correction || 'Please consult healthcare professionals for accurate information.',
-            frequency_count: 1
-          })
+          .insert(insertData)
           .select()
           .single();
 
         if (error) {
           console.error('Error logging misinformation:', error);
+        } else {
+          console.log('Misinformation report saved:', data);
+          
+          // Trigger map data refresh event
+          window.dispatchEvent(new CustomEvent('misinformationReported', { 
+            detail: { reportId: data.id, location: userLocation } 
+          }));
         }
 
         return {

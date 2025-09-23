@@ -4,8 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Send, Bot, User, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Send, Bot, User, AlertTriangle, CheckCircle, MapPin } from 'lucide-react';
 import { useChatBot } from '@/hooks/useChatBot';
+import { LocationConsentDialog } from '@/components/LocationConsentDialog';
+import { LocationData } from '@/services/geolocation';
 
 interface Message {
   id: string;
@@ -27,6 +29,9 @@ export const ChatBot = () => {
   ]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showLocationDialog, setShowLocationDialog] = useState(false);
+  const [userLocation, setUserLocation] = useState<LocationData | null>(null);
+  const [locationConsent, setLocationConsent] = useState<boolean | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { searchDisease, logConversation, detectMisinformation, getAIHealthResponse } = useChatBot();
 
@@ -53,8 +58,9 @@ export const ChatBot = () => {
     setIsLoading(true);
 
     try {
-      // Check for misinformation first
-      const misinformationDetected = await detectMisinformation(inputText);
+      // Check for misinformation first (pass user location if available)
+      const locationString = userLocation ? `${userLocation.city}, ${userLocation.state}` : undefined;
+      const misinformationDetected = await detectMisinformation(inputText, locationString);
       
       let botResponse = '';
       let botMessage: Message;
@@ -70,6 +76,11 @@ export const ChatBot = () => {
         };
         setMessages(prev => [...prev, correctionMessage]);
         botResponse = misinformationDetected.correction;
+
+        // Prompt for location consent for misinformation tracking
+        if (locationConsent === null) {
+          setShowLocationDialog(true);
+        }
       } else {
         // Try to find disease in database first
         const disease = await searchDisease(inputText);
@@ -101,8 +112,13 @@ export const ChatBot = () => {
         }
       }
 
-      // Log conversation
-      await logConversation(inputText, botResponse, null, misinformationDetected?.id);
+      // Log conversation with location if available
+      await logConversation(
+        inputText, 
+        botResponse, 
+        userLocation ? `${userLocation.city}, ${userLocation.state}` : null, 
+        misinformationDetected?.id
+      );
 
     } catch (error) {
       console.error('Error processing message:', error);
@@ -142,12 +158,36 @@ export const ChatBot = () => {
     }
   };
 
+  const handleLocationConsent = (consented: boolean, location?: LocationData) => {
+    setLocationConsent(consented);
+    if (consented && location) {
+      setUserLocation(location);
+      
+      // Add a message about location tracking
+      const locationMessage: Message = {
+        id: Date.now().toString(),
+        text: `📍 Location tracking enabled for ${location.city}, ${location.state}. This helps us track regional misinformation patterns and provide better local health insights.`,
+        isBot: true,
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, locationMessage]);
+    }
+  };
+
   return (
     <Card className="h-[600px] flex flex-col">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Bot className="h-5 w-5 text-primary" />
-          Aarogya Setu Health Assistant
+        <CardTitle className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Bot className="h-5 w-5 text-primary" />
+            Aarogya Setu Health Assistant
+          </div>
+          {userLocation && (
+            <div className="flex items-center gap-1 text-sm text-muted-foreground">
+              <MapPin className="h-4 w-4" />
+              {userLocation.city}, {userLocation.state}
+            </div>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="flex-1 flex flex-col p-0">
@@ -173,7 +213,7 @@ export const ChatBot = () => {
                   className={`max-w-[80%] rounded-lg p-3 ${
                     message.isBot
                       ? message.misinformation
-                        ? 'bg-destructive/10 text-destructive-foreground border border-destructive/20'
+                        ? 'bg-destructive/10 text-black border border-destructive/20'
                         : 'bg-muted'
                       : 'bg-primary text-primary-foreground ml-auto'
                   }`}
@@ -241,6 +281,12 @@ export const ChatBot = () => {
           </div>
         </div>
       </CardContent>
+      
+      <LocationConsentDialog
+        open={showLocationDialog}
+        onOpenChange={setShowLocationDialog}
+        onConsent={handleLocationConsent}
+      />
     </Card>
   );
 };
