@@ -86,7 +86,6 @@ The application will be available at `http://localhost:8080` (or the next availa
 │   ├── components/          # React components
 │   │   ├── ui/             # UI components (shadcn/ui)
 │   │   ├── ChatBot.tsx     # AI chat interface
-│   │   ├── APIStatus.tsx   # API status checker
 │   │   └── GeminiTest.tsx  # API testing component
 │   ├── services/           # External service integrations
 │   │   └── geminiAI.ts     # Google Gemini AI service
@@ -117,11 +116,10 @@ npm run type-check   # Run TypeScript checks
 
 ## ✅ Verifying Setup
 
-### 1. Check API Status
+### 1. Check Application Features
 - Open the application
-- Go to "API Status" tab
-- Verify all services show as "Enabled"
-- Click "Test Gemini API" to verify AI integration
+- Verify all services are working correctly
+- Test the AI integration by asking health questions
 
 ### 2. Test Features
 - **AI Chat:** Ask health questions in the "AI Chat" tab
@@ -180,7 +178,6 @@ npm install
 ### Getting Help
 
 - Check the browser console for error messages
-- Use the "API Status" tab to diagnose issues
 - Review the detailed error messages in chat responses
 
 ## 🔒 Security Notes
@@ -215,8 +212,7 @@ This project is open source and available under the MIT License.
 
 If you encounter issues:
 1. Check this README first
-2. Look at the API Status tab in the application
-3. Check browser console for errors
-4. Create an issue on GitHub with detailed information
+2. Check browser console for errors
+3. Create an issue on GitHub with detailed information
 
 **Happy coding! 🚀**

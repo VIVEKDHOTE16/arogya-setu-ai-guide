@@ -22,7 +22,7 @@ export const ChatBot = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: 'Hello! I\'m your Aarogya Setu health assistant. I can help you with verified medical information about diseases. Ask me about any health condition!',
+  text: 'Hello! I\'m your Arogya Setu health assistant. I can help you with verified medical information about diseases. Ask me about any health condition!',
       isBot: true,
       timestamp: new Date()
     }
@@ -76,6 +76,22 @@ export const ChatBot = () => {
         };
         setMessages(prev => [...prev, correctionMessage]);
         botResponse = misinformationDetected.correction;
+
+        // Emit global event so map can create a persistent pin
+        try {
+          const detail = {
+            id: misinformationDetected.id || `misinfo_${Date.now()}`,
+            query: inputText,
+            correction: misinformationDetected.correction,
+            type: misinformationDetected.type || 'Misinformation',
+            timestamp: new Date().toISOString(),
+            userLocation: userLocation ? { ...userLocation } : null
+          };
+          window.dispatchEvent(new CustomEvent('misinformationDetectedPersistent', { detail }));
+          console.log('Dispatched misinformationDetectedPersistent event', detail);
+        } catch (e) {
+          console.warn('Failed to dispatch misinformationDetectedPersistent event', e);
+        }
 
         // Prompt for location consent for misinformation tracking
         if (locationConsent === null) {
@@ -180,7 +196,7 @@ export const ChatBot = () => {
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Bot className="h-5 w-5 text-primary" />
-            Aarogya Setu Health Assistant
+            Arogya Setu Health Assistant
           </div>
           {userLocation && (
             <div className="flex items-center gap-1 text-sm text-muted-foreground">

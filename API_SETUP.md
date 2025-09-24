@@ -46,10 +46,10 @@ VITE_APP_VERSION="1.0.0"
 
 ## 🔍 Testing API Connectivity
 
-The application includes an "API Status" tab that shows:
-- ✅ Which APIs are properly configured
-- ❌ Which APIs need setup
-- 💡 Instructions for missing configurations
+You can test API connectivity by:
+- Using the AI chat feature to verify Gemini API integration
+- Browsing the disease database to verify Supabase connection
+- Checking browser console for any connection errors
 
 ## 🛡️ Security Notes
 

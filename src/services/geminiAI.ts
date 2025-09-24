@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { API_CONFIG, FEATURES } from '@/config/api';
+import { API_CONFIG, FEATURES, getActiveAIProvider } from '@/config/api';
+import { generateOpenAIHealthResponse, isOpenAIConfigured } from './openaiAI';
 
 let genAI: GoogleGenerativeAI | null = null;
 let model: any = null;
@@ -21,21 +22,35 @@ export interface HealthQueryResponse {
   disclaimer: string;
 }
 
+
 export const generateHealthResponse = async (userQuery: string): Promise<HealthQueryResponse> => {
   console.log('generateHealthResponse called with query:', userQuery);
-  console.log('Model available:', !!model);
-  
-  if (!model) {
-    console.warn('Model not available, returning fallback response');
+  const provider = getActiveAIProvider();
+  console.log('Active AI provider:', provider);
+
+  // Route to OpenAI if selected
+  if (provider === 'openai') {
+    const openAIResult = await generateOpenAIHealthResponse(userQuery);
     return {
-      response: "AI assistant is currently unavailable. Please configure your Gemini API key in the environment variables.",
-      disclaimer: "This is a fallback response. Please consult a healthcare professional."
+      response: openAIResult.response,
+      disclaimer: openAIResult.disclaimer,
+      diseaseDetected: openAIResult.diseaseDetected,
+      severity: openAIResult.severity,
+      recommendations: openAIResult.recommendations
+    };
+  }
+
+  if (!model) {
+    console.warn('Gemini model not available and OpenAI not selected, returning fallback response');
+    return {
+      response: 'AI assistant is currently unavailable. Please configure an AI provider.',
+      disclaimer: 'This is a fallback response. Please consult a healthcare professional.'
     };
   }
 
   try {
-    const healthPrompt = `
-You are a medical AI assistant for Aarogya Setu, an Indian health information platform. Respond to health queries with accurate, evidence-based information.
+  const healthPrompt = `
+You are a medical AI assistant for Arogya Setu, an Indian health information platform. Respond to health queries with accurate, evidence-based information.
 
 IMPORTANT GUIDELINES:
 1. Always include medical disclaimers

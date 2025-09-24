@@ -118,7 +118,6 @@ npm run lint         # Run ESLint
 ## 🔧 Troubleshooting
 
 **API not working?**
-- Check API Status tab in the application
 - Verify environment variables
 - Check browser console for errors
 
@@ -142,9 +141,8 @@ This project is open source and available under the MIT License.
 ## 🆘 Support
 
 If you encounter issues:
-1. Check the API Status tab in the application
-2. Review [SETUP.md](./SETUP.md)
-3. Create an issue on GitHub
+1. Review [SETUP.md](./SETUP.md)
+2. Create an issue on GitHub
 
 ---
 

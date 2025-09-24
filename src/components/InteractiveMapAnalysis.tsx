@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, AlertTriangle, TrendingUp, Users, Loader2, Navigation, RotateCcw, Database, Shield, RefreshCw } from 'lucide-react';
+import { MapPin, AlertTriangle, TrendingUp, Users, Loader2, Navigation, RotateCcw, Database, Shield, RefreshCw, Trash2 } from 'lucide-react';
 import { geolocationService, LocationData } from '@/services/geolocation';
 import { enhancedGeocodingService, GeocodedLocation } from '@/services/enhancedGeocoding';
 import { supabase } from '@/integrations/supabase/client';
@@ -163,6 +163,51 @@ export const InteractiveMapAnalysis = () => {
   const [mapZoom, setMapZoom] = useState(5);
   const [selectedHotspot, setSelectedHotspot] = useState<MisinformationHotspot | null>(null);
 
+  // ---------------------------------------------------------------------------
+  // Persistent Misinformation Pins (manual clear only)
+  // ---------------------------------------------------------------------------
+  interface MisinformationPin {
+    id: string;
+    latitude: number;
+    longitude: number;
+    query: string;
+    correction: string;
+    type: string;
+    timestamp: string; // ISO string
+    source: 'user' | 'restored';
+    locationLabel?: string;
+  }
+
+  const [misinfoPins, setMisinfoPins] = useState<MisinformationPin[]>(() => {
+    try {
+      const raw = localStorage.getItem('misinfoPins');
+      if (raw) return JSON.parse(raw);
+    } catch (e) {
+      console.warn('Failed to parse misinfoPins from storage', e);
+    }
+    return [];
+  });
+
+  // Persist to localStorage whenever updated
+  useEffect(() => {
+    try {
+      localStorage.setItem('misinfoPins', JSON.stringify(misinfoPins));
+    } catch (e) {
+      console.warn('Failed saving misinfoPins', e);
+    }
+  }, [misinfoPins]);
+
+  const addPin = (pin: MisinformationPin) => {
+    setMisinfoPins(prev => prev.find(p => p.id === pin.id) ? prev : [...prev, pin]);
+  };
+
+  const clearAllPins = () => {
+    if (confirm('Clear ALL persistent misinformation pins? This cannot be undone.')) {
+      setMisinfoPins([]);
+      try { localStorage.removeItem('misinfoPins'); } catch {}
+    }
+  };
+
   useEffect(() => {
     loadRealHotspots();
     
@@ -173,9 +218,41 @@ export const InteractiveMapAnalysis = () => {
     };
     
     window.addEventListener('misinformationReported', handleNewReport as EventListener);
+
+    // Listen for persistent misinformation detection events emitted by ChatBot
+    const handlePersistent = (event: Event) => {
+      const custom = event as CustomEvent;
+      const detail: any = custom.detail;
+      if (!detail) return;
+      console.log('Persistent misinformation detected event received:', detail);
+
+      // Determine coordinates
+      let lat: number | undefined = detail.userLocation?.latitude;
+      let lng: number | undefined = detail.userLocation?.longitude;
+
+      if (lat == null || lng == null) {
+        // fallback: approximate center with slight jitter to avoid overlap
+        lat = 20.5937 + (Math.random() - 0.5) * 0.4;
+        lng = 78.9629 + (Math.random() - 0.5) * 0.4;
+      }
+
+      addPin({
+        id: detail.id,
+        latitude: lat,
+        longitude: lng,
+        query: detail.query || 'Unknown query',
+        correction: detail.correction || 'No correction provided',
+        type: detail.type || 'general',
+        timestamp: detail.timestamp || new Date().toISOString(),
+        source: detail.userLocation ? 'user' : 'restored',
+        locationLabel: detail.userLocation ? `${detail.userLocation.city || ''}${detail.userLocation.state ? ', ' + detail.userLocation.state : ''}` : 'Approximate'
+      });
+    };
+    window.addEventListener('misinformationDetectedPersistent', handlePersistent as EventListener);
     
     return () => {
       window.removeEventListener('misinformationReported', handleNewReport as EventListener);
+      window.removeEventListener('misinformationDetectedPersistent', handlePersistent as EventListener);
     };
   }, []);
 
@@ -496,6 +573,14 @@ export const InteractiveMapAnalysis = () => {
               </div>
             )}
 
+            <Button 
+              onClick={clearAllPins}
+              variant="destructive"
+              className="flex items-center gap-2"
+            >
+              <Trash2 className="h-4 w-4" /> Clear Pins
+            </Button>
+
             {syncStatus && (
               <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 px-3 py-2 rounded-lg">
                 <Shield className="h-4 w-4" />
@@ -608,6 +693,39 @@ export const InteractiveMapAnalysis = () => {
                           </div>
                         )}
                       </div>
+                    </div>
+                  </Popup>
+                </Marker>
+              ))}
+
+              {/* Persistent misinformation pins */}
+              {misinfoPins.map(pin => (
+                <Marker
+                  key={pin.id}
+                  position={[pin.latitude, pin.longitude]}
+                  icon={L.divIcon({
+                    html: `<div style="position:relative;width:26px;height:26px;">
+                            <div style=\"position:absolute;inset:0;border-radius:50%;background:rgba(220,38,38,0.55);border:2px solid #dc2626;box-shadow:0 0 8px rgba(220,38,38,0.7);animation:pulse 2s infinite;\"></div>
+                            <div style=\"position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;background:#7f1d1d;border:2px solid white;border-radius:50%;\"></div>
+                          </div>` ,
+                    className: 'misinfo-pin-icon',
+                    iconSize: [26, 26],
+                    iconAnchor: [13, 13]
+                  })}
+                >
+                  <Popup>
+                    <div className="w-64">
+                      <div className="flex items-center gap-2 mb-2">
+                        <AlertTriangle className="h-4 w-4 text-red-600" />
+                        <h3 className="font-semibold text-red-600">Misinformation</h3>
+                      </div>
+                      <p className="text-xs font-medium mb-1">Query</p>
+                      <p className="text-sm mb-2 break-words">{pin.query}</p>
+                      <p className="text-xs font-medium mb-1">Correction</p>
+                      <p className="text-xs bg-green-50 text-green-700 p-2 rounded mb-2 break-words">{pin.correction}</p>
+                      <p className="text-xs text-muted-foreground">Type: {pin.type}</p>
+                      <p className="text-xs text-muted-foreground">Time: {new Date(pin.timestamp).toLocaleString()}</p>
+                      {pin.locationLabel && <p className="text-xs text-muted-foreground">Location: {pin.locationLabel}</p>}
                     </div>
                   </Popup>
                 </Marker>
