@@ -154,28 +154,168 @@ const createCustomIcon = (severity: string, count: number) => {
 export const InteractiveMapAnalysis = () => {
   const [userLocation, setUserLocation] = useState<LocationData | null>(null);
   const [isGettingLocation, setIsGettingLocation] = useState(false);
-  const [hotspots, setHotspots] = useState<MisinformationHotspot[]>(sampleHotspots);
+  const [hotspots, setHotspots] = useState<MisinformationHotspot[]>(sampleHotspots); // Always start with sample data
   const [isLoadingData, setIsLoadingData] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [syncStatus, setSyncStatus] = useState<string>('');
+  const [syncStatus, setSyncStatus] = useState<string>('Initializing...');
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [mapCenter, setMapCenter] = useState<[number, number]>([20.5937, 78.9629]); // Center of India
   const [mapZoom, setMapZoom] = useState(5);
   const [selectedHotspot, setSelectedHotspot] = useState<MisinformationHotspot | null>(null);
+  const [refreshAttempts, setRefreshAttempts] = useState(0);
+  const [isComponentMounted, setIsComponentMounted] = useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false); // Track if we've attempted a load
+  const refreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    loadRealHotspots();
+    setIsComponentMounted(true);
+    
+    // Ensure we always start with sample data for immediate display
+    console.log('Initializing regional map with sample data for immediate display...');
+    setHotspots(sampleHotspots);
+    setSyncStatus('Loading regional data...');
+    
+    // Load real data in background after a short delay
+    const loadTimer = setTimeout(() => {
+      if (isComponentMounted) {
+        console.log('Starting background data load...');
+        loadRealHotspots();
+      }
+    }, 1000); // Small delay to ensure UI is responsive and user sees sample data first
+    
+    // Clear initial status after a moment to show clean interface
+    const statusTimer = setTimeout(() => {
+      if (isComponentMounted && !isLoadingData) {
+        setSyncStatus('');
+      }
+    }, 2000);
+    
+    // Set up auto-refresh interval (every 5 minutes)
+    refreshIntervalRef.current = setInterval(() => {
+      if (isComponentMounted && !isLoadingData && !isSyncing) {
+        console.log('Auto-refreshing map data...');
+        performIncrementalSync();
+      }
+    }, 5 * 60 * 1000); // 5 minutes
     
     // Listen for new misinformation reports and auto-sync
     const handleNewReport = (event: CustomEvent) => {
-      console.log('New misinformation reported, auto-syncing...', event.detail);
+      if (isComponentMounted) {
+        console.log('New misinformation reported, auto-syncing...', event.detail);
+        performIncrementalSync();
+      }
+    };
+    
+    // Listen for persistent misinformation detection
+    const handlePersistent = (event: Event) => {
+      if (!isComponentMounted) return;
+      
+      const custom = event as CustomEvent;
+      const detail: any = custom.detail;
+      if (!detail) return;
+      
+      console.log('Persistent misinformation detected event received:', detail);
+      
+      // Trigger data refresh to include new pin
       performIncrementalSync();
+    };
+
+    // Listen for Bhopal misinformation marking
+    const handleBhopalMisinformation = (event: Event) => {
+      if (!isComponentMounted) return;
+      
+      const custom = event as CustomEvent;
+      const detail: any = custom.detail;
+      if (!detail) return;
+      
+      console.log('Alcohol-coronavirus misinformation detected, marking Bhopal:', detail);
+      
+      // Create new Bhopal hotspot
+      const bhopalHotspot: MisinformationHotspot = {
+        id: `bhopal-${Date.now()}`,
+        latitude: 23.2599,
+        longitude: 77.4126,
+        location: 'Bhopal, Madhya Pradesh',
+        reportCount: 1,
+        severity: 'high',
+        topics: ['COVID-19 misinformation', 'Alcohol myths'],
+        lastReported: new Date(),
+        reports: [{
+          type: 'alcohol_coronavirus',
+          message: detail.message,
+          timestamp: detail.timestamp
+        }],
+        city: 'Bhopal',
+        state: 'Madhya Pradesh',
+        region: 'Central India',
+        locationSource: 'manual',
+        validatedLocation: true
+      };
+
+      // Add to existing hotspots (or update if Bhopal already exists)
+      setHotspots(prevHotspots => {
+        const existingBhopalIndex = prevHotspots.findIndex(h => 
+          h.location.includes('Bhopal') || (h.latitude === 23.2599 && h.longitude === 77.4126)
+        );
+        
+        if (existingBhopalIndex >= 0) {
+          // Update existing Bhopal hotspot
+          const updated = [...prevHotspots];
+          updated[existingBhopalIndex] = {
+            ...updated[existingBhopalIndex],
+            reportCount: updated[existingBhopalIndex].reportCount + 1,
+            lastReported: new Date(),
+            severity: 'high',
+            topics: [...new Set([...updated[existingBhopalIndex].topics, ...bhopalHotspot.topics])],
+            reports: [...updated[existingBhopalIndex].reports, ...bhopalHotspot.reports]
+          };
+          return updated;
+        } else {
+          // Add new Bhopal hotspot
+          return [...prevHotspots, bhopalHotspot];
+        }
+      });
+
+      // Center map on Bhopal temporarily
+      setMapCenter([23.2599, 77.4126]);
+      setMapZoom(12);
+      
+      // Show notification
+      setSyncStatus('🚨 Misinformation detected and marked in Bhopal, MP');
+      setTimeout(() => {
+        if (isComponentMounted) {
+          setSyncStatus('');
+        }
+      }, 5000);
     };
     
     window.addEventListener('misinformationReported', handleNewReport as EventListener);
+    window.addEventListener('persistentMisinformationDetected', handlePersistent as EventListener);
+    window.addEventListener('markBhopalMisinformation', handleBhopalMisinformation as EventListener);
     
     return () => {
+      setIsComponentMounted(false);
+      
+      // Clear intervals and timeouts
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+        refreshIntervalRef.current = null;
+      }
+      
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+        syncTimeoutRef.current = null;
+      }
+      
+      // Clear the timers
+      clearTimeout(loadTimer);
+      clearTimeout(statusTimer);
+      
+      // Remove event listeners
       window.removeEventListener('misinformationReported', handleNewReport as EventListener);
+      window.removeEventListener('persistentMisinformationDetected', handlePersistent as EventListener);
+      window.removeEventListener('markBhopalMisinformation', handleBhopalMisinformation as EventListener);
     };
   }, []);
 
@@ -197,19 +337,43 @@ export const InteractiveMapAnalysis = () => {
     }
   };
 
-  const loadRealHotspots = async () => {
+  const loadRealHotspots = async (forceRefresh: boolean = false) => {
+    if (!isComponentMounted) return;
+    
+    // Prevent concurrent loads unless forced
+    if (isLoadingData && !forceRefresh) {
+      console.log('Data loading already in progress, skipping...');
+      return;
+    }
+    
     setIsLoadingData(true);
+    
+    // Always ensure we have data to display during loading
+    const currentHotspots = hotspots.length > 0 ? hotspots : sampleHotspots;
+    if (hotspots.length === 0) {
+      console.log('Setting sample data as we have no current data...');
+      setHotspots(sampleHotspots);
+    }
+    
     try {
-      console.log('Loading misinformation reports with data sync...');
+      console.log(`Loading misinformation reports ${forceRefresh ? '(forced refresh)' : 'with data sync'}...`);
       
       // Use data sync service to get enriched reports
       const enrichedReports = await dataSyncService.getAllEnrichedReports(userLocation);
+      
+      // Check if component is still mounted
+      if (!isComponentMounted) {
+        console.log('Component unmounted during data load, cancelling...');
+        return;
+      }
       
       console.log(`Found ${enrichedReports?.length || 0} misinformation reports (with location data)`);
 
       if (enrichedReports && enrichedReports.length > 0) {
         // Group reports by location using enriched data
         const locationGroups: { [key: string]: MisinformationHotspot } = {};
+        let processedCount = 0;
+        let skippedCount = 0;
         
         // Process enriched reports directly (they already have location data)
         enrichedReports.forEach((report) => {
@@ -230,6 +394,7 @@ export const InteractiveMapAnalysis = () => {
           if (!coords) {
             // Skip reports without coordinates - they'll be handled in next sync
             console.warn(`Report ${report.id} missing coordinates, skipping for now`);
+            skippedCount++;
             return;
           }
           
@@ -263,6 +428,8 @@ export const InteractiveMapAnalysis = () => {
           if (reportDate > locationGroups[location].lastReported) {
             locationGroups[location].lastReported = reportDate;
           }
+          
+          processedCount++;
         });
 
         // Calculate severity and convert to array
@@ -271,23 +438,99 @@ export const InteractiveMapAnalysis = () => {
           severity: (hotspot.reportCount > 10 ? 'high' : hotspot.reportCount > 5 ? 'medium' : 'low') as 'low' | 'medium' | 'high'
         }));
 
-        console.log(`Created ${hotspotsFromDB.length} hotspots from enriched database reports`);
-        setHotspots(hotspotsFromDB);
+        console.log(`Created ${hotspotsFromDB.length} hotspots from ${processedCount} processed reports (${skippedCount} skipped)`);
+        
+        if (isComponentMounted && hotspotsFromDB.length > 0) {
+          // Only replace if we have real data
+          setHotspots(hotspotsFromDB);
+          setRefreshAttempts(0); // Reset error counter on success
+          setSyncStatus(`Loaded ${processedCount} real reports`);
+          setHasLoadedOnce(true);
+        } else if (isComponentMounted) {
+          // If no real hotspots but no error, keep sample data and show status
+          console.log('No valid hotspots created, keeping sample data');
+          if (!hasLoadedOnce) {
+            setHotspots(sampleHotspots); // Ensure sample data is set
+          }
+          setSyncStatus('No reports with valid locations found - showing sample data');
+          setHasLoadedOnce(true);
+        }
       } else {
         console.log('No reports found in database, using sample data');
-        setHotspots(sampleHotspots);
+        if (isComponentMounted) {
+          // Ensure we always have sample data
+          if (!hasLoadedOnce || hotspots.length === 0) {
+            setHotspots(sampleHotspots);
+          }
+          setSyncStatus('No database reports found - showing sample data');
+          setHasLoadedOnce(true);
+          
+          // Clear status after showing sample data message
+          if (syncTimeoutRef.current) {
+            clearTimeout(syncTimeoutRef.current);
+          }
+          syncTimeoutRef.current = setTimeout(() => {
+            if (isComponentMounted) {
+              setSyncStatus('');
+            }
+          }, 3000);
+        }
       }
     } catch (error) {
       console.error('Failed to load real hotspots:', error);
-      setHotspots(sampleHotspots);
+      
+      if (isComponentMounted) {
+        // Always ensure we have sample data on error
+        setHotspots(sampleHotspots);
+        
+        // Increment retry counter
+        const attempts = refreshAttempts + 1;
+        setRefreshAttempts(attempts);
+        
+        // If this is not a retry and we haven't exceeded max attempts, try again
+        if (attempts < 3 && !forceRefresh) {
+          console.log(`Retrying data load in 2 seconds... (attempt ${attempts}/3)`);
+          setSyncStatus(`Loading failed, retrying... (${attempts}/3)`);
+          setTimeout(() => {
+            if (isComponentMounted) {
+              loadRealHotspots(false);
+            }
+          }, 2000);
+        } else {
+          // Fall back to sample data after max retries
+          setSyncStatus('Using sample data - connection issues');
+          
+          // Clear error status after 5 seconds
+          if (syncTimeoutRef.current) {
+            clearTimeout(syncTimeoutRef.current);
+          }
+          syncTimeoutRef.current = setTimeout(() => {
+            if (isComponentMounted) {
+              setSyncStatus('');
+            }
+          }, 5000);
+        }
+      }
     } finally {
-      setIsLoadingData(false);
+      if (isComponentMounted) {
+        setIsLoadingData(false);
+      }
     }
   };
 
   const performIncrementalSync = async () => {
+    if (!isComponentMounted || isSyncing) {
+      console.log('Sync already in progress or component unmounted, skipping...');
+      return;
+    }
+    
     setIsSyncing(true);
     setSyncStatus('Syncing new data...');
+    
+    // Clear any existing timeout
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+    }
     
     try {
       console.log('Starting incremental sync with location validation...');
@@ -296,61 +539,135 @@ export const InteractiveMapAnalysis = () => {
       let currentLocation = userLocation;
       if (!currentLocation) {
         try {
+          setSyncStatus('Getting location for better sync...');
           currentLocation = await geolocationService.getCurrentPosition();
-          setUserLocation(currentLocation);
+          if (isComponentMounted) {
+            setUserLocation(currentLocation);
+          }
         } catch (error) {
           console.warn('Could not get current location for sync:', error);
+          setSyncStatus('Syncing without location...');
         }
+      }
+      
+      // Check if still mounted before proceeding
+      if (!isComponentMounted) {
+        console.log('Component unmounted during sync, cancelling...');
+        return;
       }
       
       // Perform incremental sync
       const syncResult = await dataSyncService.syncData(currentLocation);
       
+      // Check if still mounted after async operation
+      if (!isComponentMounted) {
+        console.log('Component unmounted during sync operation, cancelling...');
+        return;
+      }
+      
       if (syncResult.newReports.length > 0) {
         setSyncStatus(`Synced ${syncResult.newReports.length} new reports${syncResult.errors.length > 0 ? ` (${syncResult.errors.length} errors)` : ''}`);
         
-        // Reload hotspots to include new data
-        await loadRealHotspots();
-        setLastSyncTime(new Date());
+        // Reload hotspots to include new data - but don't clear existing data during load
+        await loadRealHotspots(true);
+        
+        if (isComponentMounted) {
+          setLastSyncTime(new Date());
+        }
       } else {
         setSyncStatus('No new data to sync');
       }
       
       if (syncResult.errors.length > 0) {
         console.warn('Sync completed with errors:', syncResult.errors);
+        if (syncResult.errors.length === syncResult.totalProcessed) {
+          setSyncStatus('Sync completed with errors - check connection');
+        }
       }
       
     } catch (error) {
       console.error('Incremental sync failed:', error);
-      setSyncStatus('Sync failed - check connection');
+      if (isComponentMounted) {
+        setSyncStatus('Sync failed - check connection');
+      }
     } finally {
-      setIsSyncing(false);
-      // Clear status after 3 seconds
-      setTimeout(() => setSyncStatus(''), 3000);
+      if (isComponentMounted) {
+        setIsSyncing(false);
+        
+        // Clear status after 3 seconds
+        syncTimeoutRef.current = setTimeout(() => {
+          if (isComponentMounted) {
+            setSyncStatus('');
+          }
+        }, 3000);
+      }
     }
   };
 
   const forceFullRefresh = async () => {
+    if (!isComponentMounted || isLoadingData || isSyncing) {
+      console.log('Refresh already in progress or component unmounted, skipping...');
+      return;
+    }
+    
     setIsLoadingData(true);
     setSyncStatus('Force refreshing all data...');
     
+    // Clear any existing timeout
+    if (syncTimeoutRef.current) {
+      clearTimeout(syncTimeoutRef.current);
+    }
+    
     try {
+      console.log('Starting force refresh...');
+      
+      // Clear retry counter
+      setRefreshAttempts(0);
+      
       const refreshResult = await dataSyncService.forceRefresh(userLocation);
+      
+      // Check if still mounted after async operation
+      if (!isComponentMounted) {
+        console.log('Component unmounted during force refresh, cancelling...');
+        return;
+      }
       
       if (refreshResult.totalProcessed > 0) {
         setSyncStatus(`Refreshed ${refreshResult.totalProcessed} reports`);
-        await loadRealHotspots();
-        setLastSyncTime(new Date());
+        await loadRealHotspots(true);
+        
+        if (isComponentMounted) {
+          setLastSyncTime(new Date());
+        }
       } else {
         setSyncStatus('No data found to refresh');
       }
       
+      if (refreshResult.errors.length > 0) {
+        console.warn('Force refresh completed with errors:', refreshResult.errors);
+        setSyncStatus(`Refreshed with ${refreshResult.errors.length} errors`);
+      }
+      
     } catch (error) {
       console.error('Force refresh failed:', error);
-      setSyncStatus('Refresh failed - check connection');
+      if (isComponentMounted) {
+        setSyncStatus('Refresh failed - check connection');
+        
+        // Try to load cached data as fallback
+        console.log('Attempting to load cached data...');
+        await loadRealHotspots(false);
+      }
     } finally {
-      setIsLoadingData(false);
-      setTimeout(() => setSyncStatus(''), 3000);
+      if (isComponentMounted) {
+        setIsLoadingData(false);
+        
+        // Clear status after 3 seconds
+        syncTimeoutRef.current = setTimeout(() => {
+          if (isComponentMounted) {
+            setSyncStatus('');
+          }
+        }, 3000);
+      }
     }
   };
 
@@ -358,6 +675,22 @@ export const InteractiveMapAnalysis = () => {
     setMapCenter([20.5937, 78.9629]);
     setMapZoom(5);
     setSelectedHotspot(null);
+  };
+
+  const quickRefresh = async () => {
+    if (!isComponentMounted) return;
+    
+    console.log('Quick refresh triggered...');
+    
+    // First try incremental sync (faster)
+    if (!isSyncing && !isLoadingData) {
+      await performIncrementalSync();
+    }
+    
+    // If no new data from sync, reload existing data
+    if (!isLoadingData) {
+      await loadRealHotspots(false);
+    }
   };
 
   const focusOnHotspot = (hotspot: MisinformationHotspot) => {
@@ -476,7 +809,7 @@ export const InteractiveMapAnalysis = () => {
             </Button>
 
             <Button
-              onClick={loadRealHotspots}
+              onClick={() => loadRealHotspots(false)}
               disabled={isLoadingData}
               variant="outline"
               className="flex items-center gap-2"

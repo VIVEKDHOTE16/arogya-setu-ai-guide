@@ -9,7 +9,7 @@ export const API_CONFIG = {
     model: import.meta.env.VITE_GEMINI_MODEL || 'gemini-1.5-flash',
   },
   app: {
-    name: import.meta.env.VITE_APP_NAME || 'Aarogya Setu AI Health Guide',
+    name: import.meta.env.VITE_APP_NAME || 'Arogya Setu AI Health Guide',
     version: import.meta.env.VITE_APP_VERSION || '1.0.0',
   }
 };

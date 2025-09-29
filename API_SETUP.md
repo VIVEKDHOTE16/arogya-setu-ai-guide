@@ -1,4 +1,4 @@
-# Aarogya Setu AI Health Guide - API Setup
+# API Configuration for Arogya Setu AI Guide
 
 This application integrates with multiple APIs to provide comprehensive health information and AI-powered assistance.
 

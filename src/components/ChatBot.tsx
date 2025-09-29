@@ -22,7 +22,7 @@ export const ChatBot = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: 'Hello! I\'m your Aarogya Setu health assistant. I can help you with verified medical information about diseases. Ask me about any health condition!',
+      text: 'Hello! I\'m your Arogya Setu health assistant. I can help you with verified medical information about diseases. Ask me about any health condition!',
       isBot: true,
       timestamp: new Date()
     }
@@ -58,6 +58,12 @@ export const ChatBot = () => {
     setIsLoading(true);
 
     try {
+      // Check for specific alcohol-coronavirus misinformation
+      const isAlcoholCoronavirusMisinfo = inputText.toLowerCase().includes('alcohol') && 
+        (inputText.toLowerCase().includes('coronavirus') || inputText.toLowerCase().includes('covid')) &&
+        (inputText.toLowerCase().includes('kill') || inputText.toLowerCase().includes('cure') || 
+         inputText.toLowerCase().includes('prevent') || inputText.toLowerCase().includes('protect'));
+
       // Check for misinformation first (pass user location if available)
       const locationString = userLocation ? `${userLocation.city}, ${userLocation.state}` : undefined;
       const misinformationDetected = await detectMisinformation(inputText, locationString);
@@ -65,17 +71,39 @@ export const ChatBot = () => {
       let botResponse = '';
       let botMessage: Message;
 
-      if (misinformationDetected) {
-        // Show misinformation correction
-        const correctionMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          text: `⚠️ **Misinformation Detected**: ${misinformationDetected.correction}`,
-          isBot: true,
-          misinformation: true,
-          timestamp: new Date()
-        };
-        setMessages(prev => [...prev, correctionMessage]);
-        botResponse = misinformationDetected.correction;
+      if (misinformationDetected || isAlcoholCoronavirusMisinfo) {
+        // Handle specific alcohol-coronavirus misinformation
+        if (isAlcoholCoronavirusMisinfo) {
+          // Trigger map marking for Bhopal
+          window.dispatchEvent(new CustomEvent('markBhopalMisinformation', { 
+            detail: { 
+              type: 'alcohol_coronavirus',
+              message: inputText,
+              timestamp: new Date()
+            }
+          }));
+
+          const alcoholMisinfoMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            text: `⚠️ **MISINFORMATION ALERT**: This is FALSE information!\n\n❌ **Myth**: "Drinking alcohol kills coronavirus in your body"\n\n✅ **FACT**: Drinking alcohol does NOT protect you from COVID-19 and can actually:\n• Weaken your immune system\n• Increase health risks\n• Worsen COVID-19 symptoms if infected\n\n🔍 **This misinformation has been reported and marked on the regional map for tracking.**\n\n📞 For accurate COVID-19 information, consult healthcare professionals or visit WHO/CDC websites.`,
+            isBot: true,
+            misinformation: true,
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, alcoholMisinfoMessage]);
+          botResponse = alcoholMisinfoMessage.text;
+        } else if (misinformationDetected) {
+          // Show general misinformation correction
+          const correctionMessage: Message = {
+            id: (Date.now() + 1).toString(),
+            text: `⚠️ **Misinformation Detected**: ${misinformationDetected.correction}`,
+            isBot: true,
+            misinformation: true,
+            timestamp: new Date()
+          };
+          setMessages(prev => [...prev, correctionMessage]);
+          botResponse = misinformationDetected.correction;
+        }
 
         // Prompt for location consent for misinformation tracking
         if (locationConsent === null) {
@@ -180,7 +208,7 @@ export const ChatBot = () => {
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Bot className="h-5 w-5 text-primary" />
-            Aarogya Setu Health Assistant
+            Arogya Setu Health Assistant
           </div>
           {userLocation && (
             <div className="flex items-center gap-1 text-sm text-muted-foreground">

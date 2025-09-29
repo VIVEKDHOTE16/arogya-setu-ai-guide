@@ -1,4 +1,4 @@
-# 🏥 Aarogya Setu AI Health Guide - Setup Instructions
+# 🏥 Arogya Setu AI Health Guide - Setup Instructions
 
 A comprehensive health information platform with AI-powered chatbot assistance using Google Gemini and Supabase.
 

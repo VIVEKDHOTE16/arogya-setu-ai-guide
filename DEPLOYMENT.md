@@ -1,4 +1,4 @@
-# 🚀 Deployment Guide - Aarogya Setu AI Health Guide
+# 🚀 Deployment Guide - Arogya Setu AI Health Guide
 
 This guide covers multiple deployment options for running the project on different platforms.
 

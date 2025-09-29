@@ -1,4 +1,4 @@
-# 🏥 Aarogya Setu AI Health Guide
+# 🏥 Arogya Setu AI Health Guide
 
 An intelligent health information platform powered by AI, providing verified medical information with Google Gemini integration and Supabase database.
 

@@ -1,5 +1,5 @@
 @echo off
-echo 🏥 Aarogya Setu AI Health Guide - Quick Setup
+echo 🏥 Arogya Setu AI Health Guide - Quick Setup
 echo ==============================================
 
 :: Check if Node.js is installed

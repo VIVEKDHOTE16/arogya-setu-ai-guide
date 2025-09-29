@@ -10,13 +10,11 @@ import { MisinformationDashboard } from "@/components/MisinformationDashboard";
 import { MisinformationTracker } from "@/components/MisinformationTracker";
 import { SimpleRegionalAnalysis } from "@/components/SimpleRegionalAnalysis";
 import { InteractiveMapAnalysis } from "@/components/InteractiveMapAnalysis";
-import { APIStatus } from "@/components/APIStatus";
-import { GeminiTest } from "@/components/GeminiTest";
 import { sampleDiseases, diseaseCategories, severityLevels } from "@/data/sampleDiseases";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MessageCircle, Database, AlertTriangle, Home, Settings, MapPin } from "lucide-react";
+import { MessageCircle, Database, AlertTriangle, Home, MapPin } from "lucide-react";
 
 const Index = () => {
   const [searchQuery, setSearchQuery] = useState("");
@@ -81,7 +79,7 @@ const Index = () => {
       <main className="container mx-auto px-4 py-8">
         <div className="text-center mb-8">
           <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-4">
-            Aarogya Setu
+            Arogya Setu
           </h1>
           <p className="text-xl text-gray-600 mb-6 max-w-3xl mx-auto">
             Your trusted companion for health information with AI-powered chatbot assistance.
@@ -89,7 +87,7 @@ const Index = () => {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-6 mb-8">
+          <TabsList className="grid w-full grid-cols-5 mb-8">
             <TabsTrigger value="home" className="flex items-center gap-2">
               <Home className="h-4 w-4" />
               Home
@@ -109,10 +107,6 @@ const Index = () => {
             <TabsTrigger value="tracker" className="flex items-center gap-2">
               <MapPin className="h-4 w-4" />
               Regional Map
-            </TabsTrigger>
-            <TabsTrigger value="status" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              API Status
             </TabsTrigger>
           </TabsList>
 
@@ -179,13 +173,6 @@ const Index = () => {
 
           <TabsContent value="diseases">
             <DiseaseInfo />
-          </TabsContent>
-
-          <TabsContent value="status">
-            <div className="space-y-6">
-              <APIStatus />
-              <GeminiTest />
-            </div>
           </TabsContent>
 
           <TabsContent value="misinformation">

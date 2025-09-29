@@ -1,8 +1,8 @@
 #!/bin/bash
 
-# Aarogya Setu AI Health Guide - Quick Setup Script
+# Arogya Setu AI Health Guide - Quick Setup Script
 
-echo "🏥 Aarogya Setu AI Health Guide - Quick Setup"
+echo "🏥 Arogya Setu AI Health Guide - Quick Setup"
 echo "=============================================="
 
 # Check if Node.js is installed
